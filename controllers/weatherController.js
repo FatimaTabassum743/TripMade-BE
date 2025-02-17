@@ -1,6 +1,7 @@
 const axios = require('axios');
 const db = require('../models/WeatherSearch');
 require('dotenv').config();
+const { createNotification } = require('./notificationController');
 
 exports.searchWeather = async (req, res) => {
   const { city } = req.body;
@@ -81,7 +82,21 @@ exports.saveTrip = async (req, res) => {
       ]
     );
 
-    // Send success response
+    // Find other users planning to visit the same city
+    const [matchingUsers] = await db.query(
+      'SELECT DISTINCT t.user_id, u.username FROM trips t JOIN users u ON t.user_id = u.id WHERE t.city = ? AND t.user_id != ?',
+      [city, req.user.id]
+    );
+
+    // Create notifications for matching users
+    for (const user of matchingUsers) {
+      await createNotification(
+        user.user_id,
+        `${req.user.username} is also planning to visit ${city}!`,
+        city
+      );
+    }
+
     res.status(201).json({ message: 'Trip saved successfully', tripId: result.insertId });
   } catch (err) {
     console.error(err);
